@@ -4,17 +4,32 @@
 #include "chip8.h"
 
 #define SCREEN_SCALE_FACTOR 10
-#define TICK_MS 1000
-#define CPU_TICK_RATE 60
+#define TICK_INTERVAL (1000/180)
 
-uint32_t update_cpu(uint32_t interval, void *param) {
-	chip8_next();
-	return interval;
+SDL_Keycode input_keys[NUM_INPUT] = { SDLK_0, SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_5, SDLK_6, SDLK_7, SDLK_8, SDLK_9, SDLK_a, SDLK_b, SDLK_c, SDLK_d, SDLK_e, SDLK_f };
+uint8_t input_events[NUM_INPUT];
+
+static uint32_t next_tick;
+
+uint32_t tick_time_left() {
+	uint32_t now = SDL_GetTicks();
+	return next_tick <= now ? 0 : next_tick - now;
 }
+
+// REMOVE THE THREADS TO FIX THE RANDOM BLACK SCREENS!
 
 uint32_t update_cpu_timers(uint32_t interval, void *param) {
 	chip8_update_timers();
 	return interval;
+}
+
+void update_input(SDL_Keycode key, int pressed) {
+	for (int i = 0; i < NUM_INPUT; i++) {
+		if (input_keys[i] == key) {
+			chip8_input(i, pressed);
+			break;
+		}
+	}
 }
 
 int main(int argc, char *args[]) {
@@ -33,16 +48,19 @@ int main(int argc, char *args[]) {
 	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
 
 	chip8_init(args[1]);
-	SDL_TimerID cpu_timer_id = SDL_AddTimer(TICK_MS / CPU_TICK_RATE, update_cpu, NULL);
-	SDL_TimerID cpu_timers_timer_id = SDL_AddTimer(TICK_MS, update_cpu_timers, NULL);
+	SDL_TimerID cpu_timers_timer_id = SDL_AddTimer(1000/180, update_cpu_timers, NULL);
 
-	//draw(0, 0, 5);
 	int quit = 0;
-	while (!quit) {   
+	next_tick = SDL_GetTicks() + TICK_INTERVAL;
+	while (!quit) {
+		chip8_next(input_events);
+
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT) {
 				quit = 1;
+			} else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+				update_input(event.key.keysym.sym, event.type == SDL_KEYDOWN);
 			}
 		}
 
@@ -60,9 +78,11 @@ int main(int argc, char *args[]) {
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, tex, NULL, NULL);
 		SDL_RenderPresent(renderer);
+
+		SDL_Delay(tick_time_left());
+		next_tick += TICK_INTERVAL;
 	}
 
-	SDL_RemoveTimer(cpu_timer_id);
 	SDL_RemoveTimer(cpu_timers_timer_id);
 	SDL_DestroyWindow(window);
 	SDL_Quit();

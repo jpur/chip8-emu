@@ -31,6 +31,7 @@ void set_I(unsigned short value);
 
 unsigned char mem[MEM_SIZE];
 unsigned char reg[NUM_REG];
+uint8_t keys[NUM_INPUT];
 unsigned short stack[STACK_SIZE];
 unsigned short sp;
 unsigned short pc;
@@ -39,6 +40,11 @@ uint8_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
 
 unsigned char delay_timer;
 unsigned char sound_timer;
+
+uint8_t blocking;
+uint8_t blocking_reg;
+
+int (*next_ptr)(uint8_t *) = NULL;
 
 unsigned char font[FONT_NUM_CHARS * FONT_HEIGHT] =
 { 
@@ -79,9 +85,23 @@ void chip8_init(char *file) {
 	sp = 0;
 	I = 0;
 	pc = MEM_START;
+	next_ptr = chip8_next;
 }
 
-int chip8_next() {
+void chip8_input(uint8_t key, uint8_t pressed) {
+	if (blocking && keys[key] == 0 && pressed) {
+		set_reg(blocking_reg, key);
+		blocking = 0;
+	}
+	keys[key] = pressed;
+}
+
+int chip8_next(uint8_t *input) {
+	if (blocking) {
+		printf("blocking\n");
+		return 1;
+	}
+
 	unsigned short opcode = get_instr();
 	printf("0x%04X\n", opcode);
 
@@ -94,6 +114,7 @@ int chip8_next() {
 					set_pc(stack[--sp]);
 					break;
 				case 0x00E0:
+					printf("--------------- CLAER --------------------");
 					memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
 					break;
 				default:
@@ -126,8 +147,8 @@ int chip8_next() {
 		case 0x6000:
 			set_reg(X(opcode), NN(opcode));
 			break;
-		case 0x7000:;
-			set_reg(X(opcode), get_reg(X(opcode)) + (NN(opcode)));
+		case 0x7000:
+			set_reg(X(opcode), get_reg(X(opcode)) + NN(opcode));
 			break;
 		case 0x8000:;
 			unsigned char r1 = X(opcode);
@@ -164,7 +185,6 @@ int chip8_next() {
 					set_reg(CARRY_REG, r2_v > r1_v);
 					break;
 				case 0x000E:
-					printf("-----------------------------------------------------------\n");
 					set_reg(CARRY_REG, (r1_v & 0x80) != 0);
 					set_reg(r1, r1_v << 1);
 					break;
@@ -172,28 +192,49 @@ int chip8_next() {
 					printf("unimplemented %d\n", opcode);
 					break;
 			}
+			break;
 		case 0xA000:
 			set_I(NNN(opcode));
 			break;
 		case 0xB000:
-			pc = get_reg(0) + NNN(opcode);
+			pc = NNN(opcode) + get_reg(0);
 			break;
-		case 0xC000:;
-			unsigned char r = X(opcode);
-			set_reg(r, rand() & get_reg(r));
+		case 0xC000:
+			set_reg(X(opcode), get_reg(X(opcode)) & (rand() % 256));
 			break;
-		case 0xD000:;
+		case 0xD000:
 			draw(get_reg(X(opcode)), get_reg(Y(opcode)), N(opcode));
+			break;
+		case 0xE000:
+			switch (opcode & 0x00FF) {
+				case 0x009E:
+					if (keys[X(opcode)]) {
+						printf("check down\n");
+						next_instr();
+					}
+				break;
+				case 0x00A1:
+					if (!keys[X(opcode)]) {
+
+						printf("check up\n");
+						next_instr();
+					}
+				break;
+			}
 			break;
 		case 0xF000:
 			switch (opcode & 0x00FF) {
+				case 0x0007:
+					set_reg(X(opcode), delay_timer);
+					break;
+				case 0x000A:
+					blocking = 1;
+					blocking_reg = X(opcode);
+					break;
 				case 0x0033:
 					mem[I] = get_reg(X(opcode)) / 100;
 					mem[I + 1] = (get_reg(X(opcode)) / 10) % 10;
 					mem[I + 2] = (get_reg(X(opcode)) % 100) % 10;
-					break;
-				case 0x0007:
-					set_reg(X(opcode), delay_timer);
 					break;
 				case 0x0015:
 					delay_timer = get_reg(X(opcode));
@@ -253,7 +294,7 @@ void chip8_update_timers() {
 		sound_timer--;
 	}
 
-	printf("%d\n", delay_timer);
+	//printf("%d\n", delay_timer);
 }
 
 void set_I(unsigned short value) {

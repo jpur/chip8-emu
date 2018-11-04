@@ -1,5 +1,6 @@
 #include "chip8.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 #define MEM_SIZE 4096
 #define STACK_SIZE 16
@@ -7,6 +8,12 @@
 #define MEM_START 512
 #define INSTR_LEN 2
 #define CARRY_REG 0xF
+
+#define X(op) ((op & 0x0F00) >> 8)
+#define Y(op) ((op & 0x00F0) >> 4)
+#define N(op) ((op & 0x000F))
+#define NN(op) ((op & 0x00FF))
+#define NNN(op) ((op & 0x0FFF))
 
 unsigned short get_instr();
 void set_reg(unsigned char r, unsigned char value);
@@ -40,7 +47,7 @@ void chip8_init(char *file) {
 
 int chip8_next() {
 	unsigned short opcode = get_instr();
-	printf("0x%04X\n", opcode);
+	//printf("0x%04X\n", opcode);
 
 	next_instr();
 	
@@ -51,40 +58,40 @@ int chip8_next() {
 			}
 			break;
 		case 0x1000:
-			set_pc(opcode & 0x0FFF);
+			set_pc(NNN(opcode));
 			break;
 		case 0x2000:
 			stack[sp++] = pc;
-			set_pc(opcode & 0x0FFF);
+			set_pc(NNN(opcode));
 			break;
 		case 0x3000:
-			if (get_reg((opcode & 0x0F00) >> 8) == (opcode & 0x00FF)) {
+			if (get_reg(X(opcode)) == (NN(opcode))) {
 				next_instr();
 			}
 			break;
 		case 0x4000:
-			if (get_reg((opcode & 0x0F00) >> 8) != (opcode & 0x00FF)) {
+			if (get_reg(X(opcode)) != (NN(opcode))) {
 				next_instr();
 			}
 			break;
 		case 0x5000:
-			if (get_reg((opcode & 0x0F00) >> 8) == get_reg((opcode & 0x00F0) >> 4)) {
+			if (get_reg(X(opcode)) == get_reg(Y(opcode))) {
 				next_instr();
 			}
 			break;
 		case 0x6000:
-			set_reg((opcode & 0x0F00) >> 8, opcode & 0x00FF);
+			set_reg(X(opcode), NN(opcode));
 			break;
 		case 0x7000:;
-			unsigned char r = (opcode & 0x0F00) >> 8;
-			set_reg(r, get_reg(r) + (opcode & 0x00FF));
+			unsigned char rr = X(opcode);
+			set_reg(rr, get_reg(rr) + (NN(opcode)));
 			break;
 		case 0x8000:;
-			unsigned char r1 = (opcode & 0x0F00) >> 8;
+			unsigned char r1 = X(opcode);
 			unsigned char r1_v = get_reg(r1);
-			unsigned char r2 = (opcode & 0x00F0) >> 4;
+			unsigned char r2 = Y(opcode);
 			unsigned char r2_v = get_reg(r2);
-			switch (opcode & 0x000F) {
+			switch (N(opcode)) {
 				case 0x0000:
 					set_reg(r1, r2_v);
 					break;
@@ -107,22 +114,26 @@ int chip8_next() {
 					break;
 			}
 		case 0xA000:
-			I = opcode & 0x0FFF;
+			I = NNN(opcode);
 			break;
 		case 0xE000:
-			switch (opcode & 0x00FF) {
+			switch (NN(opcode)) {
 				case 0x00A1:
 					//Skips the next instruction if the key stored in VX isn't pressed. (Usually the next instruction is a jump to skip a code block)
+					
 				break;
 				case 0x009E:
 					//Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block)
 				break;
 			}
 			break;
+		case 0xC000:;
+			unsigned char r = X(opcode);
+			set_reg(r, rand() & get_reg(r));
 		case 0xD000:;
-			unsigned char x = (opcode & 0x0F00) >> 8;
-			unsigned char y = (opcode & 0x00F0) >> 4;
-			unsigned char height = (opcode & 0x000F);
+			unsigned char x = X(opcode);
+			unsigned char y = Y(opcode);
+			unsigned char height = (N(opcode));
 			for (int yi = y; yi < y + height; yi++) {
 				for (int xi = x; xi < x + SPRITE_WIDTH; xi++) {
 					pixels[yi * SCREEN_WIDTH + xi] = 1;
@@ -131,10 +142,10 @@ int chip8_next() {
 			printf("Draw sprite at (%d,%d) of size (%d,%d)\n", x, y, SPRITE_WIDTH, height);
 			break;
 		case 0xF000:
-			set_reg((opcode & 0x0F00) >> 8, delay_timer);
+			set_reg(X(opcode), delay_timer);
 			break;
 		default:
-			printf("^ unimpelemented\n");
+			printf("^ unimpelemented 0x%04X\n", opcode);
 			break;
 	}
 	

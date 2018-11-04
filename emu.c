@@ -4,7 +4,7 @@
 #include "chip8.h"
 
 #define SCREEN_SCALE_FACTOR 10
-#define TICK_INTERVAL (1000/180)
+#define TICK_INTERVAL (1000/60)
 
 SDL_Keycode input_keys[NUM_INPUT] = { SDLK_0, SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_5, SDLK_6, SDLK_7, SDLK_8, SDLK_9, SDLK_a, SDLK_b, SDLK_c, SDLK_d, SDLK_e, SDLK_f };
 uint8_t input_events[NUM_INPUT];
@@ -14,13 +14,6 @@ static uint32_t next_tick;
 uint32_t tick_time_left() {
 	uint32_t now = SDL_GetTicks();
 	return next_tick <= now ? 0 : next_tick - now;
-}
-
-// REMOVE THE THREADS TO FIX THE RANDOM BLACK SCREENS!
-
-uint32_t update_cpu_timers(uint32_t interval, void *param) {
-	chip8_update_timers();
-	return interval;
 }
 
 void update_input(SDL_Keycode key, int pressed) {
@@ -48,11 +41,11 @@ int main(int argc, char *args[]) {
 	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
 
 	chip8_init(args[1]);
-	SDL_TimerID cpu_timers_timer_id = SDL_AddTimer(1000/180, update_cpu_timers, NULL);
 
 	int quit = 0;
 	next_tick = SDL_GetTicks() + TICK_INTERVAL;
 	while (!quit) {
+		chip8_update_timers();
 		chip8_next(input_events);
 
 		SDL_Event event;
@@ -83,7 +76,6 @@ int main(int argc, char *args[]) {
 		next_tick += TICK_INTERVAL;
 	}
 
-	SDL_RemoveTimer(cpu_timers_timer_id);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 	return 0;

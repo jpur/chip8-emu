@@ -44,8 +44,6 @@ unsigned char sound_timer;
 uint8_t blocking;
 uint8_t blocking_reg;
 
-int (*next_ptr)(uint8_t *) = NULL;
-
 unsigned char font[FONT_NUM_CHARS * FONT_HEIGHT] =
 { 
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -85,7 +83,6 @@ void chip8_init(char *file) {
 	sp = 0;
 	I = 0;
 	pc = MEM_START;
-	next_ptr = chip8_next;
 }
 
 void chip8_input(uint8_t key, uint8_t pressed) {
@@ -114,7 +111,6 @@ int chip8_next(uint8_t *input) {
 					set_pc(stack[--sp]);
 					break;
 				case 0x00E0:
-					printf("--------------- CLAER --------------------");
 					memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
 					break;
 				default:
@@ -208,15 +204,14 @@ int chip8_next(uint8_t *input) {
 		case 0xE000:
 			switch (opcode & 0x00FF) {
 				case 0x009E:
-					if (keys[X(opcode)]) {
-						printf("check down\n");
+					printf("check down %d\n", get_reg(X(opcode)));
+					if (keys[get_reg(X(opcode))]) {
 						next_instr();
 					}
 				break;
 				case 0x00A1:
-					if (!keys[X(opcode)]) {
-
-						printf("check up\n");
+					printf("check up %d\n", get_reg(X(opcode)));
+					if (!keys[get_reg(X(opcode))]) {
 						next_instr();
 					}
 				break;

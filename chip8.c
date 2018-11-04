@@ -1,6 +1,7 @@
 #include "chip8.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MEM_SIZE 4096
 #define STACK_SIZE 16
@@ -26,6 +27,7 @@ unsigned char get_reg(unsigned char r);
 void next_instr();
 void set_pc(unsigned short addr);
 void draw(uint8_t x, uint8_t y, uint8_t height);
+void set_I(unsigned short value);
 
 unsigned char mem[MEM_SIZE];
 unsigned char reg[NUM_REG];
@@ -76,7 +78,7 @@ void chip8_init(char *file) {
 
 	sp = 0;
 	I = 0;
-	set_pc(MEM_START);
+	pc = MEM_START;
 }
 
 int chip8_next() {
@@ -87,8 +89,16 @@ int chip8_next() {
 	
 	switch (opcode & 0xF000) {
 		case 0x0000:
-			if (opcode == 0x00EE) {
-				set_pc(stack[--sp]);
+			switch (opcode) {
+				case 0x00EE:
+					set_pc(stack[--sp]);
+					break;
+				case 0x00E0:
+					memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
+					break;
+				default:
+					printf("unimplemented\n");
+					break;
 			}
 			break;
 		case 0x1000:
@@ -145,33 +155,42 @@ int chip8_next() {
 					set_reg(r1, r1_v - r2_v);
 					set_reg(CARRY_REG, r1_v > r2_v);
 					break;
+				case 0x0006:
+					set_reg(CARRY_REG, r1_v & 1);
+					set_reg(r1, r1_v >> 1);
+					break;
+				case 0x0007:
+					set_reg(r1, r2_v - r1_v);
+					set_reg(CARRY_REG, r2_v > r1_v);
+					break;
+				case 0x000E:
+					printf("-----------------------------------------------------------\n");
+					set_reg(CARRY_REG, (r1_v & 0x80) != 0);
+					set_reg(r1, r1_v << 1);
+					break;
+				default:
+					printf("unimplemented %d\n", opcode);
+					break;
 			}
 		case 0xA000:
-			I = NNN(opcode);
+			set_I(NNN(opcode));
 			break;
-		case 0xE000:
-			switch (NN(opcode)) {
-				case 0x00A1:
-					//Skips the next instruction if the key stored in VX isn't pressed. (Usually the next instruction is a jump to skip a code block)
-					
-				break;
-				case 0x009E:
-					//Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block)
-				break;
-			}
+		case 0xB000:
+			pc = get_reg(0) + NNN(opcode);
 			break;
 		case 0xC000:;
 			unsigned char r = X(opcode);
 			set_reg(r, rand() & get_reg(r));
+			break;
 		case 0xD000:;
 			draw(get_reg(X(opcode)), get_reg(Y(opcode)), N(opcode));
 			break;
 		case 0xF000:
-			switch (opcode & 0x00FF)
+			switch (opcode & 0x00FF) {
 				case 0x0033:
-					set_reg(X(opcode), get_reg(X(opcode)) / 100);
-					set_reg(X(opcode) + 1, (get_reg(X(opcode)) / 10) % 10);
-					set_reg(X(opcode) + 2, (get_reg(X(opcode)) % 100) % 10);
+					mem[I] = get_reg(X(opcode)) / 100;
+					mem[I + 1] = (get_reg(X(opcode)) / 10) % 10;
+					mem[I + 2] = (get_reg(X(opcode)) % 100) % 10;
 					break;
 				case 0x0007:
 					set_reg(X(opcode), delay_timer);
@@ -179,14 +198,27 @@ int chip8_next() {
 				case 0x0015:
 					delay_timer = get_reg(X(opcode));
 					break;
+				case 0x001E:
+					set_I(I + get_reg(X(opcode)));
+					break;
 				case 0x0029:
-					set_reg(I, FONT_IDX_START + X(opcode) * FONT_HEIGHT);
+					set_I(get_reg(X(opcode)) * FONT_HEIGHT);
+					break;
+				case 0x0055:
+					for (int i = 0; i <= X(opcode); i++) {
+						mem[I + i] = get_reg(i);
+					}
 					break;
 				case 0x0065:
 					for (int i = 0; i <= X(opcode); i++) {
-						set_reg(i, mem[get_reg(I) + i]);
+						set_reg(i, mem[I + i]);
 					}
 					break;
+				default:
+					printf("^ unimplemented %d\n", opcode);
+					break;
+			}
+			break;
 
 		default:
 			printf("^ unimplemented 0x%04X\n", opcode);
@@ -197,17 +229,20 @@ int chip8_next() {
 }
 
 void draw(uint8_t x, uint8_t y, uint8_t height) {
-	//printf("Draw sprite at (%d,%d) of size (%d,%d) (I: %d)\n", x, y, SPRITE_WIDTH, height, I);
+	printf("Draw sprite at (%d,%d) of size (%d,%d) (I: %d)\n", x, y, SPRITE_WIDTH, height, I);
 	for (int yi = 0; yi < height; yi++) {
 		for (int xi = 0; xi < SPRITE_WIDTH; xi++) {
-			uint8_t pixel = mem[I + yi] & (1 << (SPRITE_WIDTH - xi));
+			uint8_t pixel = mem[I + yi] & (1 << (SPRITE_WIDTH - xi - 1));
 			int idx = x + ((y + yi) * SCREEN_WIDTH) + xi;
 			if (pixels[idx]) {
 				set_reg(CARRY_REG, 1);
 			}
-			pixels[idx] = pixel != 0;
+			pixels[idx] ^= pixel != 0;
+			//printf("%s ", (pixel != 0 ? "1" : "."));
 		}
-	}	
+		//printf("\n");
+	}
+	//printf("\n");
 }
 
 void chip8_update_timers() {
@@ -217,6 +252,13 @@ void chip8_update_timers() {
 	if (sound_timer > 0) {
 		sound_timer--;
 	}
+
+	printf("%d\n", delay_timer);
+}
+
+void set_I(unsigned short value) {
+	I = value;
+	//printf("Set I to value %d\n", value);
 }
 
 void next_instr() {
@@ -225,6 +267,7 @@ void next_instr() {
 
 void set_pc(unsigned short addr) {
 	pc = addr;
+	//printf("Set PC to addr %d\n", addr);
 }
 
 unsigned char get_reg(unsigned char r) {
@@ -233,6 +276,7 @@ unsigned char get_reg(unsigned char r) {
 
 void set_reg(unsigned char r, unsigned char value) {
 	reg[r] = value;
+	//printf("Set register %d to value %d\n", r, value);
 }
 
 unsigned short get_instr() {

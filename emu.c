@@ -32,7 +32,7 @@ int main(int argc, char *args[]) {
 	screen = SDL_CreateRGBSurface(0, SCREEN_WIDTH, SCREEN_HEIGHT, 16, 0xF000, 0x0F00, 0x00F0, 0x000F);
 	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
 
-	chip8_init("pong.ch8");
+	chip8_init(args[1]);
 	SDL_TimerID cpu_timer_id = SDL_AddTimer(TICK_MS / CPU_TICK_RATE, update_cpu, NULL);
 	SDL_TimerID cpu_timers_timer_id = SDL_AddTimer(TICK_MS, update_cpu_timers, NULL);
 
@@ -49,7 +49,7 @@ int main(int argc, char *args[]) {
 		uint8_t *src_pixels = chip8_pixels();
 		uint16_t *dst_pixels = screen->pixels;
 		for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-			if (src_pixels[i] == 1) {
+			if (src_pixels[i] == 0) {
 				dst_pixels[i] = SDL_MapRGB(screen->format, 0, 0, 0);
 			} else {
 				dst_pixels[i] = SDL_MapRGB(screen->format, 255, 255, 255);

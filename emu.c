@@ -38,7 +38,7 @@ int main(int argc, char *args[]) {
 	renderer = SDL_CreateRenderer(window, -1, 0);
 
 	screen = SDL_CreateRGBSurface(0, SCREEN_WIDTH, SCREEN_HEIGHT, 16, 0xF000, 0x0F00, 0x00F0, 0x000F);
-	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
+	//SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
 
 	chip8_init(args[1]);
 
@@ -60,11 +60,7 @@ int main(int argc, char *args[]) {
 		uint8_t *src_pixels = chip8_pixels();
 		uint16_t *dst_pixels = screen->pixels;
 		for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-			if (src_pixels[i] == 0) {
-				dst_pixels[i] = SDL_MapRGB(screen->format, 0, 0, 0);
-			} else {
-				dst_pixels[i] = SDL_MapRGB(screen->format, 255, 255, 255);
-			}
+			dst_pixels[i] = src_pixels[i] ? SDL_MapRGB(screen->format, 255, 255, 255) : SDL_MapRGB(screen->format, 0, 0, 0);
 		}
 
 		SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, screen);

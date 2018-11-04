@@ -22,29 +22,29 @@
 #define NNN(op) ((op & 0x0FFF))
 
 unsigned short get_instr();
-void set_reg(unsigned char r, unsigned char value);
-unsigned char get_reg(unsigned char r);
+void set_reg(uint8_t r, uint8_t value);
+uint8_t get_reg(uint8_t r);
 void next_instr();
-void set_pc(unsigned short addr);
+void set_pc(uint16_t addr);
 void draw(uint8_t x, uint8_t y, uint8_t height);
-void set_I(unsigned short value);
+void set_I(uint16_t value);
 
-unsigned char mem[MEM_SIZE];
-unsigned char reg[NUM_REG];
-uint8_t keys[NUM_INPUT];
-unsigned short stack[STACK_SIZE];
-unsigned short sp;
-unsigned short pc;
-unsigned short I;
 uint8_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
+uint8_t mem[MEM_SIZE];
+uint8_t reg[NUM_REG];
+uint8_t keys[NUM_INPUT];
+uint16_t stack[STACK_SIZE];
+uint16_t sp;
+uint16_t pc;
+uint16_t I;
 
-unsigned char delay_timer;
-unsigned char sound_timer;
+uint8_t delay_timer;
+uint8_t sound_timer;
 
 uint8_t blocking;
 uint8_t blocking_reg;
 
-unsigned char font[FONT_NUM_CHARS * FONT_HEIGHT] =
+uint8_t font[FONT_NUM_CHARS * FONT_HEIGHT] =
 { 
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
   0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -75,6 +75,7 @@ void chip8_init(char *file) {
 	rewind(fp);
 
 	fread(mem + MEM_START, flen, 1, fp);
+	fclose(fp);
 
 	for (int i = FONT_IDX_START; i < FONT_NUM_CHARS * FONT_HEIGHT; i++) {
 		mem[i] = font[i];
@@ -113,9 +114,6 @@ int chip8_next(uint8_t *input) {
 				case 0x00E0:
 					memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
 					break;
-				default:
-					printf("unimplemented\n");
-					break;
 			}
 			break;
 		case 0x1000:
@@ -147,10 +145,10 @@ int chip8_next(uint8_t *input) {
 			set_reg(X(opcode), get_reg(X(opcode)) + NN(opcode));
 			break;
 		case 0x8000:;
-			unsigned char r1 = X(opcode);
-			unsigned char r1_v = get_reg(r1);
-			unsigned char r2 = Y(opcode);
-			unsigned char r2_v = get_reg(r2);
+			uint8_t r1 = X(opcode);
+			uint8_t r1_v = get_reg(r1);
+			uint8_t r2 = Y(opcode);
+			uint8_t r2_v = get_reg(r2);
 			switch (N(opcode)) {
 				case 0x0000:
 					set_reg(r1, r2_v);
@@ -184,9 +182,6 @@ int chip8_next(uint8_t *input) {
 					set_reg(CARRY_REG, (r1_v & 0x80) != 0);
 					set_reg(r1, r1_v << 1);
 					break;
-				default:
-					printf("unimplemented %d\n", opcode);
-					break;
 			}
 			break;
 		case 0xA000:
@@ -204,13 +199,11 @@ int chip8_next(uint8_t *input) {
 		case 0xE000:
 			switch (opcode & 0x00FF) {
 				case 0x009E:
-					printf("check down %d\n", get_reg(X(opcode)));
 					if (keys[get_reg(X(opcode))]) {
 						next_instr();
 					}
 				break;
 				case 0x00A1:
-					printf("check up %d\n", get_reg(X(opcode)));
 					if (!keys[get_reg(X(opcode))]) {
 						next_instr();
 					}
@@ -250,14 +243,7 @@ int chip8_next(uint8_t *input) {
 						set_reg(i, mem[I + i]);
 					}
 					break;
-				default:
-					printf("^ unimplemented %d\n", opcode);
-					break;
 			}
-			break;
-
-		default:
-			printf("^ unimplemented 0x%04X\n", opcode);
 			break;
 	}
 	
@@ -274,11 +260,8 @@ void draw(uint8_t x, uint8_t y, uint8_t height) {
 				set_reg(CARRY_REG, 1);
 			}
 			pixels[idx] ^= pixel != 0;
-			//printf("%s ", (pixel != 0 ? "1" : "."));
 		}
-		//printf("\n");
 	}
-	//printf("\n");
 }
 
 void chip8_update_timers() {
@@ -288,13 +271,10 @@ void chip8_update_timers() {
 	if (sound_timer > 0) {
 		sound_timer--;
 	}
-
-	//printf("%d\n", delay_timer);
 }
 
 void set_I(unsigned short value) {
 	I = value;
-	//printf("Set I to value %d\n", value);
 }
 
 void next_instr() {
@@ -303,18 +283,16 @@ void next_instr() {
 
 void set_pc(unsigned short addr) {
 	pc = addr;
-	//printf("Set PC to addr %d\n", addr);
 }
 
-unsigned char get_reg(unsigned char r) {
+uint8_t get_reg(uint8_t r) {
 	return reg[r];
 }
 
-void set_reg(unsigned char r, unsigned char value) {
+void set_reg(uint8_t r, uint8_t value) {
 	reg[r] = value;
-	//printf("Set register %d to value %d\n", r, value);
 }
 
-unsigned short get_instr() {
+uint16_t get_instr() {
 	return mem[pc] << 8 | mem[pc + 1];
 }

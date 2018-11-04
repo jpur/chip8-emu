@@ -4,6 +4,18 @@
 #include "chip8.h"
 
 #define SCREEN_SCALE_FACTOR 10
+#define TICK_MS 1000
+#define CPU_TICK_RATE 60
+
+uint32_t update_cpu(uint32_t interval, void *param) {
+	chip8_next();
+	return interval;
+}
+
+uint32_t update_cpu_timers(uint32_t interval, void *param) {
+	chip8_update_timers();
+	return interval;
+}
 
 int main(int argc, char *args[]) {
 	SDL_Window *window = NULL;
@@ -18,13 +30,15 @@ int main(int argc, char *args[]) {
 	renderer = SDL_CreateRenderer(window, -1, 0);
 
 	screen = SDL_CreateRGBSurface(0, SCREEN_WIDTH, SCREEN_HEIGHT, 16, 0xF000, 0x0F00, 0x00F0, 0x000F);
-	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 255, 255, 0));
+	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
 
 	chip8_init("pong.ch8");
+	SDL_TimerID cpu_timer_id = SDL_AddTimer(TICK_MS / CPU_TICK_RATE, update_cpu, NULL);
+	SDL_TimerID cpu_timers_timer_id = SDL_AddTimer(TICK_MS, update_cpu_timers, NULL);
+
+	//draw(0, 0, 5);
 	int quit = 0;
 	while (!quit) {   
-		chip8_next();
-
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT) {
@@ -48,6 +62,8 @@ int main(int argc, char *args[]) {
 		SDL_RenderPresent(renderer);
 	}
 
+	SDL_RemoveTimer(cpu_timer_id);
+	SDL_RemoveTimer(cpu_timers_timer_id);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 	return 0;

@@ -21,13 +21,16 @@
 #define NN(op) ((op & 0x00FF))
 #define NNN(op) ((op & 0x0FFF))
 
-unsigned short get_instr();
 void set_reg(uint8_t r, uint8_t value);
-uint8_t get_reg(uint8_t r);
-void next_instr();
-void set_pc(uint16_t addr);
-void draw(uint8_t x, uint8_t y, uint8_t height);
 void set_I(uint16_t value);
+void set_pc(uint16_t addr);
+
+uint16_t get_instr();
+uint16_t next_instr();
+uint8_t get_reg(uint8_t r);
+
+void chip8_draw(uint8_t x, uint8_t y, uint8_t height);
+void chip8_exec(uint16_t opcode);
 
 uint8_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
 uint8_t mem[MEM_SIZE];
@@ -77,8 +80,8 @@ void chip8_init(char *file) {
 	fread(mem + MEM_START, flen, 1, fp);
 	fclose(fp);
 
-	for (int i = FONT_IDX_START; i < FONT_NUM_CHARS * FONT_HEIGHT; i++) {
-		mem[i] = font[i];
+	for (int i = 0; i < FONT_NUM_CHARS * FONT_HEIGHT; i++) {
+		mem[FONT_IDX_START + i] = font[i];
 	}
 
 	sp = 0;
@@ -94,17 +97,13 @@ void chip8_input(uint8_t key, uint8_t pressed) {
 	keys[key] = pressed;
 }
 
-int chip8_next(uint8_t *input) {
-	if (blocking) {
-		printf("blocking\n");
-		return 1;
+void chip8_next() {
+	if (!blocking) {
+		chip8_exec(next_instr());
 	}
+}
 
-	unsigned short opcode = get_instr();
-	printf("0x%04X\n", opcode);
-
-	next_instr();
-	
+void chip8_exec(uint16_t opcode) {
 	switch (opcode & 0xF000) {
 		case 0x0000:
 			switch (opcode) {
@@ -191,10 +190,10 @@ int chip8_next(uint8_t *input) {
 			pc = NNN(opcode) + get_reg(0);
 			break;
 		case 0xC000:
-			set_reg(X(opcode), get_reg(X(opcode)) & (rand() % 256));
+			set_reg(X(opcode), NN(opcode) & (rand() % 256));
 			break;
 		case 0xD000:
-			draw(get_reg(X(opcode)), get_reg(Y(opcode)), N(opcode));
+			chip8_draw(get_reg(X(opcode)), get_reg(Y(opcode)), N(opcode));
 			break;
 		case 0xE000:
 			switch (opcode & 0x00FF) {
@@ -227,6 +226,9 @@ int chip8_next(uint8_t *input) {
 				case 0x0015:
 					delay_timer = get_reg(X(opcode));
 					break;
+				case 0x0018:
+					sound_timer = get_reg(X(opcode));
+					break;
 				case 0x001E:
 					set_I(I + get_reg(X(opcode)));
 					break;
@@ -246,12 +248,11 @@ int chip8_next(uint8_t *input) {
 			}
 			break;
 	}
-	
-	return 1;
 }
 
-void draw(uint8_t x, uint8_t y, uint8_t height) {
-	printf("Draw sprite at (%d,%d) of size (%d,%d) (I: %d)\n", x, y, SPRITE_WIDTH, height, I);
+void chip8_draw(uint8_t x, uint8_t y, uint8_t height) {
+	set_reg(CARRY_REG, 0);
+
 	for (int yi = 0; yi < height; yi++) {
 		for (int xi = 0; xi < SPRITE_WIDTH; xi++) {
 			uint8_t pixel = mem[I + yi] & (1 << (SPRITE_WIDTH - xi - 1));
@@ -273,15 +274,21 @@ void chip8_update_timers() {
 	}
 }
 
-void set_I(unsigned short value) {
+void set_I(uint16_t value) {
 	I = value;
 }
 
-void next_instr() {
+uint16_t next_instr() {
+	uint16_t curr_instr = get_instr();
 	set_pc(pc + INSTR_LEN);
+	return curr_instr;
 }
 
-void set_pc(unsigned short addr) {
+uint16_t get_instr() {
+	return mem[pc] << 8 | mem[pc + 1];
+}
+
+void set_pc(uint16_t addr) {
 	pc = addr;
 }
 
@@ -291,8 +298,4 @@ uint8_t get_reg(uint8_t r) {
 
 void set_reg(uint8_t r, uint8_t value) {
 	reg[r] = value;
-}
-
-uint16_t get_instr() {
-	return mem[pc] << 8 | mem[pc + 1];
 }

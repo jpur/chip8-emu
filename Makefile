@@ -1,4 +1,4 @@
-OBJS = chip8.c emu.c
+OBJS = src/chip8.c src/emu.c
 CC = gcc
 CFLAGS = -std=c99 -Wall -Wextra -Wno-unused-parameter
 LFLAGS = -lmingw32 -lSDL2main -lSDL2

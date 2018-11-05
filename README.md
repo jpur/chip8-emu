@@ -2,7 +2,7 @@
 An emulator for CHIP-8. 
 
 # Compiling
-Requires SDL2, then simply run `make`. You may need to adjust the makefile depending on your system/SDL2 installation.
+Requires SDL2, then simply run `mingw32-make` (on Windows). You may need to adjust the makefile depending on your system/SDL2 installation.
 
 # Running
 ```

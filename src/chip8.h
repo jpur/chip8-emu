@@ -6,9 +6,11 @@
 #define NUM_INPUT 16
 
 void chip8_init(char *file);
+uint8_t *chip8_pixels();
 void chip8_next();
-void chip8_draw(uint8_t x, uint8_t y, uint8_t height);
 void chip8_exec(uint16_t opcode);
 void chip8_input(uint8_t key, uint8_t pressed);
-void chip8_update_timers();
-uint8_t *chip8_pixels();
+uint8_t chip8_draw(uint8_t x, uint8_t y, uint8_t *sprite, uint8_t height);
+
+uint8_t chip8_tick_delay_timer();
+uint8_t chip8_tick_sound_timer();

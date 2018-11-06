@@ -22,14 +22,8 @@
 #define NNN(op) ((op & 0x0FFF))
 
 void set_reg(uint8_t r, uint8_t value);
-void set_I(uint16_t value);
-void set_pc(uint16_t addr);
-
-uint16_t get_instr();
 uint16_t next_instr();
 uint8_t get_reg(uint8_t r);
-
-void chip8_draw(uint8_t x, uint8_t y, uint8_t height);
 void chip8_exec(uint16_t opcode);
 
 uint8_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
@@ -67,10 +61,6 @@ uint8_t font[FONT_NUM_CHARS * FONT_HEIGHT] =
   0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-uint8_t *chip8_pixels() {
-	return pixels;
-}
-
 void chip8_init(char *file) {
 	FILE *fp = fopen(file, "rb");
 	fseek(fp, 0, SEEK_END);
@@ -89,14 +79,6 @@ void chip8_init(char *file) {
 	pc = MEM_START;
 }
 
-void chip8_input(uint8_t key, uint8_t pressed) {
-	if (blocking && keys[key] == 0 && pressed) {
-		set_reg(blocking_reg, key);
-		blocking = 0;
-	}
-	keys[key] = pressed;
-}
-
 void chip8_next() {
 	if (!blocking) {
 		chip8_exec(next_instr());
@@ -108,7 +90,7 @@ void chip8_exec(uint16_t opcode) {
 		case 0x0000:
 			switch (opcode) {
 				case 0x00EE:
-					set_pc(stack[--sp]);
+					pc = stack[--sp];
 					break;
 				case 0x00E0:
 					memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
@@ -116,11 +98,11 @@ void chip8_exec(uint16_t opcode) {
 			}
 			break;
 		case 0x1000:
-			set_pc(NNN(opcode));
+			pc = NNN(opcode);
 			break;
 		case 0x2000:
 			stack[sp++] = pc;
-			set_pc(NNN(opcode));
+			pc = NNN(opcode);
 			break;
 		case 0x3000:
 			if (get_reg(X(opcode)) == (NN(opcode))) {
@@ -184,7 +166,7 @@ void chip8_exec(uint16_t opcode) {
 			}
 			break;
 		case 0xA000:
-			set_I(NNN(opcode));
+			I = NNN(opcode);
 			break;
 		case 0xB000:
 			pc = NNN(opcode) + get_reg(0);
@@ -193,7 +175,7 @@ void chip8_exec(uint16_t opcode) {
 			set_reg(X(opcode), NN(opcode) & (rand() % 256));
 			break;
 		case 0xD000:
-			chip8_draw(get_reg(X(opcode)), get_reg(Y(opcode)), N(opcode));
+			set_reg(CARRY_REG, chip8_draw(get_reg(X(opcode)), get_reg(Y(opcode)), mem + I, N(opcode)));
 			break;
 		case 0xE000:
 			switch (opcode & 0x00FF) {
@@ -230,10 +212,10 @@ void chip8_exec(uint16_t opcode) {
 					sound_timer = get_reg(X(opcode));
 					break;
 				case 0x001E:
-					set_I(I + get_reg(X(opcode)));
+					I += get_reg(X(opcode));
 					break;
 				case 0x0029:
-					set_I(get_reg(X(opcode)) * FONT_HEIGHT);
+					I = get_reg(X(opcode)) * FONT_HEIGHT;
 					break;
 				case 0x0055:
 					for (int i = 0; i <= X(opcode); i++) {
@@ -250,46 +232,47 @@ void chip8_exec(uint16_t opcode) {
 	}
 }
 
-void chip8_draw(uint8_t x, uint8_t y, uint8_t height) {
-	set_reg(CARRY_REG, 0);
+void chip8_input(uint8_t key, uint8_t pressed) {
+	if (blocking && keys[key] == 0 && pressed) {
+		set_reg(blocking_reg, key);
+		blocking = 0;
+	}
+	keys[key] = pressed;
+}
+
+uint8_t chip8_draw(uint8_t x, uint8_t y, uint8_t *sprite, uint8_t height) {
+	uint8_t pixel_flipped = 0;
 
 	for (int yi = 0; yi < height; yi++) {
 		for (int xi = 0; xi < SPRITE_WIDTH; xi++) {
-			uint8_t pixel = mem[I + yi] & (1 << (SPRITE_WIDTH - xi - 1));
+			uint8_t pixel = sprite[yi] & (1 << (SPRITE_WIDTH - xi - 1));
 			int idx = x + ((y + yi) * SCREEN_WIDTH) + xi;
 			if (pixels[idx]) {
-				set_reg(CARRY_REG, 1);
+				pixel_flipped = 1;
 			}
 			pixels[idx] ^= pixel != 0;
 		}
 	}
+
+	return pixel_flipped;
 }
 
-void chip8_update_timers() {
-	if (delay_timer > 0) {
-		delay_timer--;
-	}
-	if (sound_timer > 0) {
-		sound_timer--;
-	}
+uint8_t *chip8_pixels() {
+	return pixels;
 }
 
-void set_I(uint16_t value) {
-	I = value;
+uint8_t chip8_tick_delay_timer() {
+	return delay_timer > 0 ? delay_timer-- : 0;
+}
+
+uint8_t chip8_tick_sound_timer() {
+	return sound_timer > 0 ? sound_timer-- : 0;
 }
 
 uint16_t next_instr() {
-	uint16_t curr_instr = get_instr();
-	set_pc(pc + INSTR_LEN);
+	uint16_t curr_instr = mem[pc] << 8 | mem[pc + 1];
+	pc += INSTR_LEN;
 	return curr_instr;
-}
-
-uint16_t get_instr() {
-	return mem[pc] << 8 | mem[pc + 1];
-}
-
-void set_pc(uint16_t addr) {
-	pc = addr;
 }
 
 uint8_t get_reg(uint8_t r) {
